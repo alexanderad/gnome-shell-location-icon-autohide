@@ -1,0 +1,11 @@
+{
+    "description": "Show Location icon only if Location services are enabled.",
+    "shell-version": [
+        "3.22",
+        "3.23",
+        "3.24"
+    ],
+    "uuid": "location-icon-autohide@darednaxella.name",
+    "name": "Location Icon Autohide",
+    "url": "https://github.com/alexanderad/gnome-shell-location-icon-autohide"
+}
