@@ -1,41 +1,86 @@
-const Gio = imports.gi.Gio;
-const Lang = imports.lang;
-const Main = imports.ui.main;
-
-let locationSettings, locationIndicator, locationSettingsChangedTriggerID;
-
 /*
 * Location Icon Autohide
 * Shows Location icon only if Location services are enabled.
 * Source: https://github.com/alexanderad/gnome-shell-location-icon-autohide
 * Additional docs on Location API: https://github.com/GNOME/gnome-shell/blob/master/js/ui/status/location.js
 */
+"use strict";
 
-function hideLocationIcon() {
-    if (locationIndicator.visible) locationIndicator.hide();
-}
+const Gio = imports.gi.Gio;
+const Lang = imports.lang;
+const Main = imports.ui.main;
 
-function showLocationIcon() {
-    if (!locationIndicator.visible) locationIndicator.show();
-}
+const LOGGING_ENABLED = true;
+const LOCATION_SETTINGS_SCHEMA_ID = "org.gnome.system.location";
+const LOCATION_SETTINGS_CHANGED_SIGNAL = "changed::enabled";
 
-function triggerLocationSettingsChanged() {
-    locationSettings.get_boolean('enabled') ? showLocationIcon() : hideLocationIcon();
-}
+let extension;
 
-function init() {
+const LocationIconAutohideExtension = new Lang.Class({
+  Name: "LocationIconAutohideExtension",
 
-}
+  _init: function(metadata, params) {
+    // load settings
+    this._locationIndicator =
+      Main.panel.statusArea.aggregateMenu._location.indicators;
+    this._locationSettings = new Gio.Settings({
+      schema_id: LOCATION_SETTINGS_SCHEMA_ID
+    });
+
+    // connect to settings change signal
+    this._locationSettingsChangedTriggerID = this._locationSettings.connect(
+      LOCATION_SETTINGS_CHANGED_SIGNAL,
+      Lang.bind(this, this._triggerLocationSettingsChanged)
+    );
+
+    // trigger manually upon initialization
+    this._triggerLocationSettingsChanged();
+
+    this._log("extension enabled");
+  },
+
+  _log: function(message) {
+    if (LOGGING_ENABLED) {
+      global.log("[Location Icon Autohide] " + message);
+    }
+  },
+
+  _hideLocationIcon: function() {
+    if (this._locationIndicator.visible) {
+      this._locationIndicator.hide();
+    }
+  },
+
+  _showLocationIcon: function() {
+    if (!this._locationIndicator.visible) this._locationIndicator.show();
+  },
+
+  _triggerLocationSettingsChanged: function(proxy, sender) {
+    if (this._locationSettings.get_boolean("enabled")) {
+      this._showLocationIcon();
+    } else {
+      this._hideLocationIcon();
+    }
+  },
+
+  destroy: function() {
+    // disconnect from signals
+    this._locationSettings.disconnect(this._locationSettingsChangedTriggerID);
+
+    // restore default behavior
+    this._showLocationIcon();
+
+    this._log("extension disabled");
+  }
+});
+
+function init(meta) {}
 
 function enable() {
-    locationIndicator = Main.panel.statusArea.aggregateMenu._location.indicators;
-    locationSettings = new Gio.Settings({ schema_id: 'org.gnome.system.location' });
-    locationSettingsChangedTriggerID = locationSettings.connect('changed::enabled', triggerLocationSettingsChanged);
-    triggerLocationSettingsChanged();
+  extension = new LocationIconAutohideExtension();
 }
 
 function disable() {
-    locationSettings.disconnect(locationSettingsChangedTriggerID);
-    showLocationIcon();
+  extension.destroy();
+  extension = null;
 }
-
