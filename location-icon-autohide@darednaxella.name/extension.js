@@ -10,9 +10,10 @@ const Gio = imports.gi.Gio;
 const Lang = imports.lang;
 const Main = imports.ui.main;
 
-const LOGGING_ENABLED = true;
+const LOGGING_ENABLED = false;
 const LOCATION_SETTINGS_SCHEMA_ID = "org.gnome.system.location";
 const LOCATION_SETTINGS_CHANGED_SIGNAL = "changed::enabled";
+const LOCATION_INDICATOR_RENDERED_SIGNAL = "notify::visible";
 
 let extension;
 
@@ -23,6 +24,8 @@ const LocationIconAutohideExtension = new Lang.Class({
     // load settings
     this._locationIndicator =
       Main.panel.statusArea.aggregateMenu._location.indicators;
+    this._locationIndicatorActor =
+      Main.panel.statusArea.aggregateMenu._location._item.actor;
     this._locationSettings = new Gio.Settings({
       schema_id: LOCATION_SETTINGS_SCHEMA_ID
     });
@@ -30,11 +33,17 @@ const LocationIconAutohideExtension = new Lang.Class({
     // connect to settings change signal
     this._locationSettingsChangedTriggerID = this._locationSettings.connect(
       LOCATION_SETTINGS_CHANGED_SIGNAL,
-      Lang.bind(this, this._triggerLocationSettingsChanged)
+      Lang.bind(this, this._triggerToggleIconDisplay)
+    );
+
+    // get notified once when shell is fully loaded and location icon rendered
+    this._locationIndicatorRenderedTriggerID = this._locationIndicatorActor.connect(
+      LOCATION_INDICATOR_RENDERED_SIGNAL,
+      Lang.bind(this, this._triggerLocationIndicatorRendered)
     );
 
     // trigger manually upon initialization
-    this._triggerLocationSettingsChanged();
+    this._triggerToggleIconDisplay();
 
     this._log("extension enabled");
   },
@@ -55,7 +64,7 @@ const LocationIconAutohideExtension = new Lang.Class({
     if (!this._locationIndicator.visible) this._locationIndicator.show();
   },
 
-  _triggerLocationSettingsChanged: function(proxy, sender) {
+  _triggerToggleIconDisplay: function(proxy, sender) {
     if (this._locationSettings.get_boolean("enabled")) {
       this._showLocationIcon();
     } else {
@@ -63,9 +72,16 @@ const LocationIconAutohideExtension = new Lang.Class({
     }
   },
 
+  _triggerLocationIndicatorRendered: function(proxy, sender) {
+    this._triggerToggleIconDisplay();
+  },
+
   destroy: function() {
     // disconnect from signals
     this._locationSettings.disconnect(this._locationSettingsChangedTriggerID);
+    this._locationIndicatorActor.disconnect(
+      this._locationIndicatorRenderedTriggerID
+    );
 
     // restore default behavior
     this._showLocationIcon();
